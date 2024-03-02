@@ -5,6 +5,7 @@ export interface IUser {
     name: string;
     email: string;
     type: string;
+    image: string;
     role: {
         _id: string,
         name: string,
@@ -15,4 +16,14 @@ export interface IUser {
         apiPath: string,
         module: string,
     }[]
+}
+
+export class IRegisterUserByProvider {
+    name: string
+    email: string
+    avatar: string
+    type: string
+
+    //@IsNotEmpty({ message: 'refresh_token_by_provider Không được để trống!' })
+    // refresh_token_by_provider: string
 }

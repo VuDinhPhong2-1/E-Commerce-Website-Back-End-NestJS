@@ -2,8 +2,8 @@ import { BadRequestException, ConflictException, Injectable, InternalServerError
 import { UsersService } from 'src/users/users.service';
 import { error } from 'console';
 import { JwtService } from '@nestjs/jwt';
-import { IUser } from 'src/users/users.interface';
-import { RegisterUserDto } from 'src/users/dto/create-user.dto';
+import { IRegisterUserByProvider, IUser } from 'src/users/users.interface';
+import { RegisterUserByProviderDto, RegisterUserDto } from 'src/users/dto/create-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { SoftDeleteModel } from 'soft-delete-plugin-mongoose';
 import { User, UserDocument } from 'src/users/schemas/user.schema';
@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import ms from 'ms';
 import e, { Response } from 'express';
 import { RolesService } from 'src/roles/roles.service';
+import { Role, RoleDocument } from 'src/roles/schemas/role.schema';
 @Injectable()
 export class AuthService {
     constructor(
@@ -20,7 +21,9 @@ export class AuthService {
         @InjectModel(User.name)
         private UserModel: SoftDeleteModel<UserDocument>,
         private configService: ConfigService,
-        private readonly rolesService: RolesService
+        private readonly rolesService: RolesService,
+        @InjectModel(Role.name)
+        private RoleModel: SoftDeleteModel<RoleDocument>,
     ) { }
 
     async validateUser(username: string, pass: string): Promise<any> {
@@ -45,11 +48,55 @@ export class AuthService {
         }
 
     }
-    async loginWithProviders(type: string, username: string) {
-        
+    async loginWithProviders(response: Response, loginData: IRegisterUserByProvider) {
+        const isExits = await this.usersService.findOneByEmailProvider(loginData.email, loginData.type);
+        if (isExits !== false) {
+            const { _id, name, email, role, permission } = isExits as any;
+            const payload = {
+                sub: "token login",
+                iss: "from server",
+                _id,
+                name,
+                email,
+                role
+            };
+            // gọi tới hàm tạo refresh token để tạo token
+            const refresh_token = this.createRefreshToken(payload);
+            // gọi tới hàm update token cho user
+            await this.usersService.updateUserToken(refresh_token, _id.toString());
+            await this.usersService.updateUserAvatar(loginData.avatar, _id.toString());
+
+            //set refresh token cần ở cookie
+            response.cookie('refresh_token', refresh_token, {
+                httpOnly: true,
+                maxAge: ms(this.configService.get<string>('JWT_REFRESH_EXPIRE')),
+                sameSite: 'strict',
+                secure: false,
+                path: '/',
+                domain: 'localhost', // Set the appropriate domain
+            });
+
+            return {
+                access_token: this.jwtService.sign(payload),
+                refresh_token: refresh_token,
+                user: {
+                    image: loginData.avatar,
+                    _id,
+                    name,
+                    email,
+                },
+                role,
+                permission
+            };
+        } else {
+            const result = await this.RegisterUserByProvider(loginData) as any;
+            if (result) return this.login(result, response);
+            return false;
+        }
     }
     async login(user: IUser, response: Response) {
-        const { _id, name, email, role, permission } = user;
+        const { _id, name, email, role, permission,image } = user;
+        console.log("image",image)
         const payload = {
             sub: "token login",
             iss: "from server",
@@ -71,10 +118,12 @@ export class AuthService {
             path: '/',
             domain: 'localhost', // Set the appropriate domain
         });
-
+        //console.log("user",user)
         return {
             access_token: this.jwtService.sign(payload),
+            refresh_token: refresh_token,
             user: {
+                image,
                 _id,
                 name,
                 email,
@@ -83,18 +132,34 @@ export class AuthService {
             permission
         };
     }
-
+    async RegisterUserByProvider(registerUser: IRegisterUserByProvider) {
+        if (!registerUser.email) {
+            return false;
+        } else {
+            const emailExists = await this.UserModel.findOne({ email: registerUser.email });
+            if (emailExists) {
+                throw new ConflictException('Email đã tồn tại!!!');
+            }
+            const roleUser = await this.RoleModel.findOne({ name: 'USER' }) || await this.RoleModel.create({ name: 'USER' });
+            const result = await this.UserModel.create(
+                {
+                    ...registerUser,
+                    role: roleUser._id,
+                });
+            return result;
+        }
+    }
     async RegisterUser(registerUserDto: RegisterUserDto) {
         const emailExists = await this.UserModel.findOne({ email: registerUserDto.email });
         if (emailExists) {
             throw new ConflictException('Email đã tồn tại!!!');
         }
-        const roleUser = 'USER';
+        const roleUser = await this.RoleModel.findOne({ name: 'USER' }) || await this.RoleModel.create({ name: 'USER' });
         const pass = await this.usersService.hashPassword(registerUserDto.password)
         const result = await this.UserModel.create(
             {
                 ...registerUserDto,
-                role: roleUser,
+                role: roleUser._id,
                 password: pass
             });
         return result;

@@ -12,6 +12,7 @@ import { User, UserSchema } from 'src/users/schemas/user.schema';
 import ms from 'ms';
 import { RolesService } from 'src/roles/roles.service';
 import { RolesModule } from 'src/roles/roles.module';
+import { Role, RoleSchema } from 'src/roles/schemas/role.schema';
 @Module({
   imports: [
     UsersModule,
@@ -27,8 +28,10 @@ import { RolesModule } from 'src/roles/roles.module';
         },
       }),
       inject: [ConfigService],
+      
     }),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    MongooseModule.forFeature([{ name: Role.name, schema: RoleSchema }])
   ],
   controllers: [AuthController],
   providers: [AuthService, LocalStrategy, JwtStrategy], //LocalStrategy sẽ được hệ thống biết khi tạo AuthModule

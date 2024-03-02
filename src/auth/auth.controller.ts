@@ -2,10 +2,10 @@ import { Controller, Get, Post, Render, UseGuards, Body, Res, Req } from '@nestj
 import { AppService } from 'src/app.service';
 import { LocalAuthGuard } from './local-auth.guard';
 import { Public, ResponseMessage, User } from 'src/decorators/customize';
-import { RegisterUserDto, UserLoginDto } from 'src/users/dto/create-user.dto';
+import { RegisterUserByProviderDto, RegisterUserDto, UserLoginDto } from 'src/users/dto/create-user.dto';
 import { AuthService } from './auth.service';
 import { Request, Response } from 'express';
-import { IUser } from 'src/users/users.interface';
+import { IRegisterUserByProvider, IUser } from 'src/users/users.interface';
 import { RolesService } from 'src/roles/roles.service';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 
@@ -19,25 +19,13 @@ export class AuthController {
     @ApiBody({ type: UserLoginDto })
     @Post("/login")
     async handleLogin(@User() user: IUser, @Res({ passthrough: true }) response: Response,
-        @Body() loginData: { type: string; username: string }) {
-        if (loginData.type === 'GITHUB') {
-            const user = await this.authService.loginWithProviders(loginData.username, loginData.type);
+        @Body() loginData: IRegisterUserByProvider) {
+        if (loginData.type !== 'credentials') {
+            return await this.authService.loginWithProviders(response, loginData);
+        } else {
+            return this.authService.login(user, response);
         }
-        return this.authService.login(user, response);
     }
-    // @Post("/login")
-    // async handleLogin(@Body() loginData: { type: string; username: string }) {
-    //     if (loginData.type === 'GITHUB') {
-    //       // Xử lý đăng nhập với GitHub
-    //       const user = await this.authService.loginWithProviders(loginData.username);
-    //       // Trả về thông tin token và user
-    //       return {
-    //         access_token: user.access_token,
-    //         refresh_token: user.refresh_token,
-    //         user: user.user,
-    //       };
-    //     }
-    //   }
 
     @Get('profile')
     getProfile(@Req() req) {

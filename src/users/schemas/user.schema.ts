@@ -22,8 +22,11 @@ export class User {
   type: string;
 
 
-  @Prop({ required: true })
+  @Prop()
   password: string;
+
+  @Prop()
+  image: string;
 
   @Prop()
   age: number;

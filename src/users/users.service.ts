@@ -110,6 +110,22 @@ export class UsersService {
       console.log(error)
     }
   }
+
+  async findOneByEmailProvider(email: string, type: string) {
+    try {
+      if (email === null || email === '' || email === undefined) return false;
+      const user = await this.UserModel.findOne({ email: email, type: type })
+        .populate({
+          path: 'role',
+          select: { name: 1 }
+        });
+      if (!user) return false;
+      return user;
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
   async isValidPassword(password, hash) {
     const result = compareSync(password, hash);
     return result;
@@ -145,7 +161,13 @@ export class UsersService {
         refresh_token: refresh_token
       });
   }
-
+  async updateUserAvatar(image: string, _id: string) {
+    return this.UserModel.updateOne(
+      { _id },
+      {
+        image: image
+      });
+  }
   async findOneByRefreshToken(refresh_token: string) {
     return this.UserModel.findOne({ refresh_token: refresh_token });
   }
